@@ -1,0 +1,104 @@
+name: 内核构建 - Android 14 (6.1.138)
+
+# 适配 Node.js 24 运行环境
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# 赋予工作流写入内容与管理 GitHub Actions 的权限
+permissions:
+  contents: write
+  actions: write
+
+# 触发条件：手动触发 (workflow_dispatch) 
+on:
+  workflow_dispatch:
+    inputs:
+      # ==================== ReSukiSU/KernelSU 配置 ====================
+      kernelsu_branch:
+        description: "KSU 分支 (main/builtin/自定义commit hash，留空使用默认)"
+        required: false
+        type: string
+        default: "main" # 参照日志成功参数，默认设为 main
+
+      # ==================== 版本名与构建时间 ====================
+      version:
+        description: "自定义版本名 (可选)"
+        required: false
+        type: string
+        default: ""
+      build_time:
+        description: "自定义构建时间 (可选，N或留空=当前UTC)"
+        required: false
+        type: string
+        default: "Sun Dec 01 08:10:00 UTC 2024" # 参照日志成功参数，默认设为该时间
+
+      # ==================== 功能开关 ====================
+      use_zram:
+        description: "启用 ZRAM 增强算法"
+        required: true
+        type: boolean
+        default: false # 参照日志成功参数，默认设为 false (不启用)
+      use_bbg:
+        description: "启用 BBG 防格机"
+        required: true
+        type: boolean
+        default: false # 参照日志成功参数，默认设为 false (不启用)
+      use_rekernel:
+        description: "启用 Re-Kernel 驱动"
+        required: false
+        type: boolean
+        default: false # 参照日志成功参数，默认设为 false (不启用)
+      cancel_susfs:
+        description: "禁用 SUSFS"
+        required: true
+        type: boolean
+        default: false # 参照日志成功参数，如果为 false 代表“不禁用”，即默认“启用 SUSFS” (对应 enable_susfs: true)
+
+      # ==================== Droidspaces 容器支持 ====================
+      droidspaces:
+        description: "Droidspaces 容器支持"
+        required: false
+        type: choice
+        options:
+          - "off"
+          - "678"
+          - "123"
+          - "345"
+        default: "678" # 参照日志成功参数，默认设为 678
+      droidspaces_ntsync:
+        description: "启用 Droidspaces 容器 NTSync 支持（需启用 Droidspaces）"
+        required: false
+        type: boolean
+        default: false # 参照日志成功参数，默认设为 false
+
+jobs:
+  # ==================== 单一版本内核构建任务 ====================
+  build-kernel-a14-6-1-138:
+    # 明确调用项目通用的核心构建流 build.yml
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      # 锁定为 Android 14 6.1.138 版本 (对应的安全补丁日期是 2025-06)
+      android_version: "android14"
+      kernel_version: "6.1"
+      sub_level: "138"
+      os_patch_level: "2025-06"
+      
+      # 传入用户手动输入的参数
+      ksu_variant: "ReSukiSU"
+      ksu_branch: ${{ inputs.kernelsu_branch }}
+      version: ${{ inputs.version || '' }}
+      build_time: ${{ inputs.build_time || '' }}
+      use_zram: ${{ inputs.use_zram }}
+      use_bbg: ${{ inputs.use_bbg }}
+      use_rekernel: ${{ inputs.use_rekernel || false }}
+      supp_op: false # 该版本默认不启用一加 8E 支持
+      enable_susfs: ${{ !inputs.cancel_susfs }} # 是否启用 SUSFS (即“未禁用”)
+      droidspaces: ${{ inputs.droidspaces || 'off' }}
+      droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
+
+  # ==================== 获取 KSU 管理器 APK 任务 ====================
+  get-ksu-manager:
+    # 构建完成后，并行或串行获取最新的配套管理器 APK 并与内核一同归档
+    uses: ./.github/workflows/get-manager.yml
+    secrets: inherit
