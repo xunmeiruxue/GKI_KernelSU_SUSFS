@@ -46,6 +46,11 @@ on:
         required: true
         type: boolean
         default: false
+      supp_op:
+        description: "启用一加 8E 支持"
+        required: false
+        type: boolean
+        default: false
       droidspaces:
         description: "Droidspaces 容器支持"
         required: false
@@ -87,6 +92,9 @@ on:
       cancel_susfs:
         required: false
         type: boolean
+      supp_op:
+        required: false
+        type: boolean
       droidspaces:
         required: false
         type: string
@@ -102,52 +110,36 @@ on:
         default: false
 
 jobs:
+  # 1. 前置准备任务：读取、去重并解析 5.15.json
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read and Parse 5.15.json Matrix
+        id: set-matrix
+        run: |
+          # 修复 jq 的上下文混淆导致 Cannot index array with string "lts" 的 Bug
+          MATRIX_JSON=$(jq -c '
+            [
+              ( .entries | map({ sub_level: (.kernel | split(".") | .[2]), os_patch_level: .date }) | unique_by(.sub_level)[] ),
+              { sub_level: (.lts | split(".") | .[2]), os_patch_level: "lts" }
+            ]
+          ' ./data/android13/5.15.json)
+          
+          echo "matrix=${MATRIX_JSON}" >> $GITHUB_OUTPUT
+
+  # 2. 动态生成的内核编译主任务
   build-kernels-a13-5-15:
+    needs: prepare-matrix
     name: "5.15.${{ matrix.sub_level }}-${{ matrix.os_patch_level }}"
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - sub_level: "74"
-            os_patch_level: "2023-01"
-          - sub_level: "78"
-            os_patch_level: "2023-03"
-          - sub_level: "94"
-            os_patch_level: "2023-05"
-          - sub_level: "104"
-            os_patch_level: "2023-07"
-          - sub_level: "119"
-            os_patch_level: "2023-09"
-          - sub_level: "123"
-            os_patch_level: "2023-11"
-          - sub_level: "137"
-            os_patch_level: "2024-01"
-          - sub_level: "144"
-            os_patch_level: "2024-03"
-          - sub_level: "148"
-            os_patch_level: "2024-05"
-          - sub_level: "149"
-            os_patch_level: "2024-07"
-          - sub_level: "151"
-            os_patch_level: "2024-08"
-          - sub_level: "153"
-            os_patch_level: "2024-09"
-          - sub_level: "167"
-            os_patch_level: "2024-11"
-          - sub_level: "170"
-            os_patch_level: "2025-01"
-          - sub_level: "178"
-            os_patch_level: "2025-03"
-          - sub_level: "180"
-            os_patch_level: "2025-05"
-          - sub_level: "185"
-            os_patch_level: "2025-07"
-          - sub_level: "189"
-            os_patch_level: "2025-09"
-          - sub_level: "194"
-            os_patch_level: "2025-12"
-          - sub_level: "X"
-            os_patch_level: "lts"
+        include: ${{ fromJson(needs['prepare-matrix'].outputs.matrix) }}
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
@@ -162,12 +154,12 @@ jobs:
       use_zram: ${{ inputs.use_zram }}
       use_bbg: ${{ inputs.use_bbg }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
-      supp_op: false
+      supp_op: ${{ inputs.supp_op || false }}
       enable_susfs: ${{ !inputs.cancel_susfs }}
       droidspaces: ${{ inputs.droidspaces || 'off' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
 
-  # 仅在直接触发时运行，从 main.yml 调用时跳过
+  # 3. 仅在直接触发时运行，从 main.yml 调用时跳过
   get-ksu-manager:
     if: ${{ !inputs.called_from_main }}
     uses: ./.github/workflows/get-manager.yml
