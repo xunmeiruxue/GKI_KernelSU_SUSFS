@@ -305,7 +305,7 @@ jobs:
           echo "KSU_SUFFIX=" >> $GITHUB_ENV
 
           if [ -n "${{ inputs.kernelsu_branch }}" ]; then
-            echo "BRANCH_INFO=(${ { inputs.kernelsu_branch } })" >> $GITHUB_ENV
+            echo "BRANCH_INFO=(${{ inputs.kernelsu_branch }})" >> $GITHUB_ENV
           else
             echo "BRANCH_INFO=稳定版" >> $GITHUB_ENV
           fi
@@ -400,7 +400,7 @@ jobs:
 
           | 组件 / Component | 状态 / Status |
           |:---|:---|
-          | ${{ env.KSU_NAME }} | ${{ env.KSU_SUFFIX }}${ BRANCH_INFO } |
+          | ${{ env.KSU_NAME }} | ${{ env.KSU_SUFFIX }}${{ env.BRANCH_INFO }} |
           | SUSFS | ඞ ${{ env.SUS_VER }} |
           | BBG 安全补丁 | ${{ env.BBG_STATUS }} |
           | LZ4KD & ONEPLUS_LZ4K | ${{ env.LZ4_STATUS }} |
